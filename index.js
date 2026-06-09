@@ -5,14 +5,15 @@ const { PubSub } = require('@google-cloud/pubsub');
 // Load environment variables (only used for local development)
 require('dotenv').config();
 
+const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID;
+const TOPIC_NAME = process.env.PUBSUB_TOPIC_NAME;
+const WEBHOOK_SECRET = process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
+
 // Initialize GCP Pub/Sub client
 const pubSubClient = new PubSub({
-  projectId: process.env.GCP_PROJECT_ID || 'brewery-homelab',
+  projectId: GCP_PROJECT_ID,
   apiEndpoint: process.env.PUBSUB_EMULATOR_HOST || undefined
 });
-
-const TOPIC_NAME = process.env.PUBSUB_TOPIC_NAME || 'brewery-jobs';
-const WEBHOOK_SECRET = process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
 
 /**
  * Validates request payload hash matches header to verify authenticity
@@ -38,6 +39,16 @@ function verifySignature(payload, signatureHeader) {
 
 // The core handler function
 const breweryWebhookHandler = async (req, res) => {
+  // 0. Ensure all required environment configuration variables are present
+  if (!GCP_PROJECT_ID || !TOPIC_NAME || !WEBHOOK_SECRET) {
+    const missing = [];
+    if (!GCP_PROJECT_ID) missing.push('GCP_PROJECT_ID');
+    if (!TOPIC_NAME) missing.push('PUBSUB_TOPIC_NAME');
+    if (!WEBHOOK_SECRET) missing.push('BREWERY_GITHUB_WEBHOOK_SECRET');
+    console.error(`Configuration error: Missing environment variables: ${missing.join(', ')}`);
+    return res.status(500).send(`Internal Server Error: Missing required environment configuration: ${missing.join(', ')}`);
+  }
+
   const signatureHeader = req.headers['x-hub-signature-256'];
   const eventType = req.headers['x-github-event'];
   

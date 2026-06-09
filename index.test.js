@@ -56,15 +56,18 @@ test('breweryWebhookHandler unit tests', async (t) => {
     publishedAttributes = null;
   });
 
-  // Helper to get the handler with the secret configured
+  // Helper to get the handler with all required variables configured
   const getHandlerWithSecret = () => {
+    process.env.GCP_PROJECT_ID = 'test-project';
+    process.env.PUBSUB_TOPIC_NAME = 'test-topic';
     process.env.BREWERY_GITHUB_WEBHOOK_SECRET = 'test-secret';
     delete require.cache[require.resolve('./index.js')];
     return require('./index.js').breweryWebhookHandler;
   };
 
   await t.test('should return 500 if BREWERY_GITHUB_WEBHOOK_SECRET is not configured', async () => {
-    // Delete secret from env, clear cache and require
+    process.env.GCP_PROJECT_ID = 'test-project';
+    process.env.PUBSUB_TOPIC_NAME = 'test-topic';
     delete process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
     delete require.cache[require.resolve('./index.js')];
     const { breweryWebhookHandler } = require('./index.js');
@@ -81,7 +84,51 @@ test('breweryWebhookHandler unit tests', async (t) => {
     await breweryWebhookHandler(req, res);
 
     assert.strictEqual(res.statusCode, 500);
-    assert.match(res.body, /Webhook signature verification is misconfigured/);
+    assert.match(res.body, /Missing required environment configuration: BREWERY_GITHUB_WEBHOOK_SECRET/);
+  });
+
+  await t.test('should return 500 if GCP_PROJECT_ID is not configured', async () => {
+    delete process.env.GCP_PROJECT_ID;
+    process.env.PUBSUB_TOPIC_NAME = 'test-topic';
+    process.env.BREWERY_GITHUB_WEBHOOK_SECRET = 'test-secret';
+    delete require.cache[require.resolve('./index.js')];
+    const { breweryWebhookHandler } = require('./index.js');
+
+    const req = {
+      headers: {
+        'x-github-event': 'push',
+        'x-hub-signature-256': 'sha256=somesignature'
+      },
+      rawBody: Buffer.from('{}')
+    };
+    const res = createMockResponse();
+
+    await breweryWebhookHandler(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.match(res.body, /Missing required environment configuration: GCP_PROJECT_ID/);
+  });
+
+  await t.test('should return 500 if PUBSUB_TOPIC_NAME is not configured', async () => {
+    process.env.GCP_PROJECT_ID = 'test-project';
+    delete process.env.PUBSUB_TOPIC_NAME;
+    process.env.BREWERY_GITHUB_WEBHOOK_SECRET = 'test-secret';
+    delete require.cache[require.resolve('./index.js')];
+    const { breweryWebhookHandler } = require('./index.js');
+
+    const req = {
+      headers: {
+        'x-github-event': 'push',
+        'x-hub-signature-256': 'sha256=somesignature'
+      },
+      rawBody: Buffer.from('{}')
+    };
+    const res = createMockResponse();
+
+    await breweryWebhookHandler(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.match(res.body, /Missing required environment configuration: PUBSUB_TOPIC_NAME/);
   });
 
   await t.test('should return 400 if X-GitHub-Event header is missing', async () => {
