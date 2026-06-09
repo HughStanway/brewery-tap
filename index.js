@@ -2,17 +2,13 @@ const functions = require('@google-cloud/functions-framework');
 const crypto = require('crypto');
 const { PubSub } = require('@google-cloud/pubsub');
 
-// Load environment variables (only used for local development)
-require('dotenv').config();
-
 const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID;
 const TOPIC_NAME = process.env.PUBSUB_TOPIC_NAME;
 const WEBHOOK_SECRET = process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
 
 // Initialize GCP Pub/Sub client
 const pubSubClient = new PubSub({
-  projectId: GCP_PROJECT_ID,
-  apiEndpoint: process.env.PUBSUB_EMULATOR_HOST || undefined
+  projectId: GCP_PROJECT_ID
 });
 
 /**
