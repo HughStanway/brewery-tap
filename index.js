@@ -12,15 +12,14 @@ const pubSubClient = new PubSub({
 });
 
 const TOPIC_NAME = process.env.PUBSUB_TOPIC_NAME || 'brewery-jobs';
-const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+const WEBHOOK_SECRET = process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
 
 /**
  * Validates request payload hash matches header to verify authenticity
  */
 function verifySignature(payload, signatureHeader) {
   if (!WEBHOOK_SECRET) {
-    console.warn('Warning: GITHUB_WEBHOOK_SECRET is not configured. Skipping signature verification.');
-    return true;
+    throw new Error('BREWERY_GITHUB_WEBHOOK_SECRET environment variable is not configured.');
   }
   if (!signatureHeader) {
     return false;
@@ -55,9 +54,14 @@ const breweryWebhookHandler = async (req, res) => {
   }
 
   // 1. Verify webhook signature
-  if (!verifySignature(rawBody, signatureHeader)) {
-    console.error('Signature verification failed.');
-    return res.status(401).send('Signature verification failed');
+  try {
+    if (!verifySignature(rawBody, signatureHeader)) {
+      console.error('Signature verification failed.');
+      return res.status(401).send('Signature verification failed');
+    }
+  } catch (error) {
+    console.error('Signature verification error:', error.message);
+    return res.status(500).send('Internal Server Error: Webhook signature verification is misconfigured.');
   }
 
   console.log(`Received GitHub event: ${eventType}`);

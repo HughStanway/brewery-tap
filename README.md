@@ -47,7 +47,7 @@ Create a `.env` file in the root directory:
 PORT=8080
 GCP_PROJECT_ID=brewery-homelab
 PUBSUB_TOPIC_NAME=brewery-jobs
-GITHUB_WEBHOOK_SECRET=your_github_webhook_secret_here
+BREWERY_GITHUB_WEBHOOK_SECRET=your_github_webhook_secret_here
 PUBSUB_EMULATOR_HOST=localhost:8085
 ```
 
@@ -109,7 +109,7 @@ gcloud functions deploy brewery-tap \
   --trigger-http \
   --allow-unauthenticated \
   --entry-point=breweryWebhook \
-  --set-env-vars GCP_PROJECT_ID=your-gcp-project-id,PUBSUB_TOPIC_NAME=brewery-jobs,GITHUB_WEBHOOK_SECRET=your_production_webhook_secret
+  --set-env-vars GCP_PROJECT_ID=your-gcp-project-id,PUBSUB_TOPIC_NAME=brewery-jobs,BREWERY_GITHUB_WEBHOOK_SECRET=your_production_webhook_secret
 ```
 
 > [!WARNING]
@@ -124,24 +124,24 @@ For production environments, it is best practice to store sensitive secrets in *
 Store your GitHub Webhook Secret in Secret Manager:
 ```bash
 # Create the secret container
-gcloud secrets create GITHUB_WEBHOOK_SECRET --replication-policy="automatic"
+gcloud secrets create BREWERY_GITHUB_WEBHOOK_SECRET --replication-policy="automatic"
 
 # Add your secret value
-echo -n "your_production_webhook_secret" | gcloud secrets versions add GITHUB_WEBHOOK_SECRET --data-file=-
+echo -n "your_production_webhook_secret" | gcloud secrets versions add BREWERY_GITHUB_WEBHOOK_SECRET --data-file=-
 ```
 
 #### 2. Grant Access Permissions
 Ensure your Cloud Function's runtime Service Account has access to read the secret:
 ```bash
 # Grant access to the secret
-gcloud secrets add-iam-policy-binding GITHUB_WEBHOOK_SECRET \
+gcloud secrets add-iam-policy-binding BREWERY_GITHUB_WEBHOOK_SECRET \
   --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 *(Replace `YOUR_PROJECT_NUMBER` with your actual Google Cloud Project Number).*
 
 #### 3. Deploy the Function Referencing Secret Manager
-Deploy the function and specify that the `GITHUB_WEBHOOK_SECRET` environment variable should be populated from Secret Manager:
+Deploy the function and specify that the `BREWERY_GITHUB_WEBHOOK_SECRET` environment variable should be populated from Secret Manager:
 
 ```bash
 gcloud functions deploy brewery-tap \
@@ -152,7 +152,7 @@ gcloud functions deploy brewery-tap \
   --allow-unauthenticated \
   --entry-point=breweryWebhook \
   --set-env-vars GCP_PROJECT_ID=your-gcp-project-id,PUBSUB_TOPIC_NAME=brewery-jobs \
-  --set-secrets=GITHUB_WEBHOOK_SECRET=GITHUB_WEBHOOK_SECRET:latest
+  --set-secrets=BREWERY_GITHUB_WEBHOOK_SECRET=BREWERY_GITHUB_WEBHOOK_SECRET:latest
 ```
 
 ---

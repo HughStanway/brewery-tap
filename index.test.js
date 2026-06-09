@@ -27,10 +27,11 @@ require.cache[require.resolve('@google-cloud/pubsub')] = {
   exports: { PubSub: MockPubSub }
 };
 
-// Set up environment variable for testing webhook secret signature
-process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
-
-const { breweryWebhookHandler } = require('./index.js');
+require.cache[require.resolve('dotenv')] = {
+  exports: {
+    config: () => ({ parsed: {} })
+  }
+};
 
 function createMockResponse() {
   const res = {
@@ -55,7 +56,36 @@ test('breweryWebhookHandler unit tests', async (t) => {
     publishedAttributes = null;
   });
 
+  // Helper to get the handler with the secret configured
+  const getHandlerWithSecret = () => {
+    process.env.BREWERY_GITHUB_WEBHOOK_SECRET = 'test-secret';
+    delete require.cache[require.resolve('./index.js')];
+    return require('./index.js').breweryWebhookHandler;
+  };
+
+  await t.test('should return 500 if BREWERY_GITHUB_WEBHOOK_SECRET is not configured', async () => {
+    // Delete secret from env, clear cache and require
+    delete process.env.BREWERY_GITHUB_WEBHOOK_SECRET;
+    delete require.cache[require.resolve('./index.js')];
+    const { breweryWebhookHandler } = require('./index.js');
+
+    const req = {
+      headers: {
+        'x-github-event': 'push',
+        'x-hub-signature-256': 'sha256=somesignature'
+      },
+      rawBody: Buffer.from('{}')
+    };
+    const res = createMockResponse();
+
+    await breweryWebhookHandler(req, res);
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.match(res.body, /Webhook signature verification is misconfigured/);
+  });
+
   await t.test('should return 400 if X-GitHub-Event header is missing', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const req = {
       headers: {},
       rawBody: Buffer.from('{}')
@@ -69,6 +99,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should return 400 if request body is missing', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const req = {
       headers: {
         'x-github-event': 'push'
@@ -83,6 +114,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should return 401 if signature is invalid', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const req = {
       headers: {
         'x-github-event': 'push',
@@ -99,6 +131,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should return 200/pong for ping events', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const secret = 'test-secret';
     const payloadStr = '{"zen": "Keep it simple"}';
     const hmac = crypto.createHmac('sha256', secret);
@@ -121,6 +154,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should ignore non-push events and return 200', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const secret = 'test-secret';
     const payloadStr = '{"action": "opened"}';
     const hmac = crypto.createHmac('sha256', secret);
@@ -143,6 +177,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should ignore push events that are not for refs/heads/main', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const secret = 'test-secret';
     const payloadStr = '{"ref": "refs/heads/feature-branch", "repository": {"full_name": "test/repo"}}';
     const hmac = crypto.createHmac('sha256', secret);
@@ -165,6 +200,7 @@ test('breweryWebhookHandler unit tests', async (t) => {
   });
 
   await t.test('should publish to Pub/Sub and return 202 for push events to refs/heads/main', async () => {
+    const breweryWebhookHandler = getHandlerWithSecret();
     const secret = 'test-secret';
     const payloadStr = '{"ref": "refs/heads/main", "repository": {"full_name": "test/repo"}}';
     const hmac = crypto.createHmac('sha256', secret);
